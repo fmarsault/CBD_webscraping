@@ -18,6 +18,49 @@ class SpiderEolienneBS():
         self.browser = webdriver.Firefox()  # Open new browser window
         self.sleep_time = 0.5
 
+    def crawler(self):
+        """Main method, crawl through the entire website and call the scrapper."""
+        base_url = "http://www.4coffshore.com"
+        codes, country_names = self.get_countries()
+        data_project = {}
+        self.init_csv('data_eolienne')
+
+        # Navigate through all the country pages
+        for idx_country, code in enumerate(codes):
+            country_name = country_names[idx_country]
+            data_project[country_name] = {}
+            print(str(idx_country + 1) + '/' + str(len(codes)))
+            print('Country: ' + country_name)
+
+            url_country = base_url + '/windfarms/windfarms.aspx?windfarmId=' + code
+            soup = self.url_request_bs(url_country)  # Request the next country url
+            # Get the url and name of each project for a country
+            url_projects, projects_name = self.get_projects(soup)
+            #
+            for idx_project, url_project in enumerate(url_projects):
+                project_name = projects_name[idx_project]  # Initialize dictionary to store the data
+                data_project[country_name][project_name] = {}
+                print(str(idx_project + 1) + '/' + str(len(projects_name)))
+                print('Project: ' + project_name)
+                soup = self.url_request_bs(base_url + url_project)  # Request project url
+
+                try:
+                    # Navigate to the SupplyChain url
+                    supplychain =soup.find('a', id='ctl00_Body_Page_SubMenu_hypSupplychain')['href']
+                    url_supplychain = base_url + '/windfarms/' + supplychain
+
+                    # Scrape through the project page
+                    data_project = self.scrapper(url_supplychain, country_name, project_name, data_project)
+
+                    # Append the project data in a csv file
+                    self.write_csv(country_name, project_name, data_project)
+                except (TypeError, ValueError):
+                    print("Page not found!")
+                    pass
+
+        self.write_json(data_project)
+        return data_project
+
     def url_request(self,url):
         """Make an url request using only Selenium"""
         self.browser.get(url)
@@ -81,49 +124,6 @@ class SpiderEolienneBS():
             pass
         return url_projects, projects_name
 
-    def crawler(self):
-        """Main method, crawl through the entire website and call the scrapper."""
-        base_url = "http://www.4coffshore.com"
-        codes, country_names = self.get_countries()
-        data_project = {}
-        self.init_csv('data_eolienne')
-
-        # Navigate through all the country pages
-        for idx_country, code in enumerate(codes):
-            country_name = country_names[idx_country]
-            data_project[country_name] = {}
-            print(str(idx_country + 1) + '/' + str(len(codes)))
-            print('Country: ' + country_name)
-
-            url_country = base_url + '/windfarms/windfarms.aspx?windfarmId=' + code
-            soup = self.url_request_bs(url_country)  # Request the next country url
-            # Get the url and name of each project for a country
-            url_projects, projects_name = self.get_projects(soup)
-            #
-            for idx_project, url_project in enumerate(url_projects):
-                project_name = projects_name[idx_project]  # Initialize dictionary to store the data
-                data_project[country_name][project_name] = {}
-                print(str(idx_project + 1) + '/' + str(len(projects_name)))
-                print('Project: ' + project_name)
-                soup = self.url_request_bs(base_url + url_project)  # Request project url
-
-                try:
-                    # Navigate to the SupplyChain url
-                    supplychain =soup.find('a', id='ctl00_Body_Page_SubMenu_hypSupplychain')['href']
-                    url_supplychain = base_url + '/windfarms/' + supplychain
-
-                    # Scrape through the project page
-                    data_project = self.scrapper(url_supplychain, country_name, project_name, data_project)
-
-                    # Append the project data in a csv file
-                    self.write_csv(country_name, project_name, data_project)
-                except (TypeError, ValueError):
-                    print("Page not found!")
-                    pass
-
-        self.write_json(data_project)
-        return data_project
-
     def scrapper(self, url_supplychain, country_name, project_name, data_project):
         """Scrap through the project page and return the data in a dictionary"""
         soup = self.url_request_bs(url_supplychain)
@@ -173,21 +173,31 @@ class SpiderEolienneBS():
         file = filename + '.csv'
         with open('scraped_data/' + file, 'w+') as file:
             writer = csv.writer(file)
-            # Write a header if the file is empty
-            writer.writerow(['Country', 'Project', 'Category', 'Role', 'Organisation'])
+            # Write a header at the file creation
+            writer.writerow(['Country', 'Project', 'Developers/Owners/Operators', 'Turbines', 'Substations',
+                             'Foundations', 'Array Cabling', 'Export Cabling', 'Met Masts', 'Consultants', 'Others'])
 
     def write_csv(self, country_name, project_name, data_dict):
         """Write data dictionary in a csv file."""
         with open('scraped_data/data_eolienne.csv', 'a') as file:
             writer = csv.writer(file)
 
+            columns = []
             category_list = list(data_dict[country_name][project_name].keys())
-            for category in category_list:
+            for idx_cat, category in enumerate(category_list):
                 roles = list(data_dict[country_name][project_name][category].keys())
+                interm_columns = []
                 for role in roles:
                     for org in data_dict[country_name][project_name][category][role]:
-                        writer.writerow([country_name, project_name, category, role, org])
+                        interm_columns.append("{}: {}\n".format(role, re.split('\n', org)[0]))
+                columns.append(''.join(interm_columns))
 
+            try:
+                writer.writerow([country_name, project_name, columns[0], columns[1], columns[2], columns[3],
+                                 columns[4], columns[5], columns[6], columns[7], columns[8]])
+            except IndexError:
+                print("Data missing in {} for the project: {}".format(country_name, project_name))
+                pass
 
 
 eole = SpiderEolienneBS()

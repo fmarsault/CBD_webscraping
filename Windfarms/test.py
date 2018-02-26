@@ -9,7 +9,52 @@ import csv
 ############### Test  data file json ############################
 
 with open('scraped_data/data_eolienne.json', 'r') as json_data:
-    d = json.load(json_data)
+    data_dict = json.load(json_data)
+
+# with open('scraped_data/data_eolienne.csv', 'r') as f:
+#     reader = csv.reader(f)
+#     for row in reader:
+#         print(row)
+
+
+
+"""Initialize the csv file"""
+file = 'data_eolienne_test' + '.csv'
+with open('scraped_data/' + file, 'w+') as file:
+    writer = csv.writer(file)
+    # Write a header if the file is empty
+    writer.writerow(['Country', 'Project', 'Developers/Owners/Operators', 'Turbines', 'Substations', 'Foundations',
+                     'Array Cabling', 'Export Cabling', 'Met Masts', 'Consultants', 'Others'])
+
+
+"""Write data dictionary in a csv file."""
+with open('scraped_data/data_eolienne_test.csv', 'a') as file:
+    writer = csv.writer(file)
+
+    country_name = 'Vietnam'
+    project_name = 'Windpark Phu Cuong 800MW  - 200MW phase 1 (intertidal)'
+
+    country_names = list(data_dict.keys())
+    for country_name in country_names:
+        project_names = list(data_dict[country_name].keys())
+        for project_name in project_names:
+            category_list = list(data_dict[country_name][project_name].keys())
+            columns = []
+            for idx_cat, category in enumerate(category_list):
+                roles = list(data_dict[country_name][project_name][category].keys())
+                interm_columns = []
+                for role in roles:
+                    for org in data_dict[country_name][project_name][category][role]:
+                        interm_columns.append("{}: {}\n".format(role, re.split('\n', org)[0]))
+                columns.append(''.join(interm_columns))
+
+            try:
+                # print(''.join(columns))
+                writer.writerow([country_name, project_name, columns[0], columns[1], columns[2], columns[3],
+                                 columns[4], columns[5], columns[6], columns[7], columns[8]])
+            except IndexError:
+                print("Data missing in {} for the project: {}".format(country_name, project_name))
+                pass
 
 # d = var = {"Belgium": {"SeaStar": {"Developers/Owners/Operators": {"Developer": [
 #     "Seastar NV\n\n\nSeastar NV is owned by a consortium of Otary,Elicio Offshore NV, Rent-a-Port, DEME NV, SRIW Environment, Aspiravi\u00a0 Offshore NV, Z\u2010kracht NV, Power@Sea NV and Socofe NV"],
